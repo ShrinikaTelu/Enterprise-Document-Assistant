@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 
 import httpx
 import numpy as np
@@ -28,40 +29,65 @@ class GeminiProvider:
         vecs = []
         with httpx.Client(timeout=30) as client:
             for text in texts:
-                r = client.post(
-                    f"{BASE}/models/{EMBED_MODEL}:embedContent",
-                    params={"key": GEMINI_API_KEY},
-                    json={"content": {"parts": [{"text": text[:8000]}]}},
-                )
-                r.raise_for_status()
-                vecs.append(r.json()["embedding"]["values"])
+                for attempt in range(3):
+                    try:
+                        r = client.post(
+                            f"{BASE}/models/{EMBED_MODEL}:embedContent",
+                            params={"key": GEMINI_API_KEY},
+                            json={"content": {"parts": [{"text": text[:8000]}]}},
+                        )
+                        r.raise_for_status()
+                        vecs.append(r.json()["embedding"]["values"])
+                        time.sleep(0.5)  # Rate limit protection
+                        break
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429 and attempt < 2:
+                            time.sleep(2 ** attempt)  # Exponential backoff
+                        else:
+                            raise
         return np.array(vecs, dtype=np.float32)
 
     def complete(self, prompt: str, fast: bool = False) -> str:
         model = FAST_MODEL if fast else LLM_MODEL
-        r = httpx.post(
-            f"{BASE}/models/{model}:generateContent",
-            params={"key": GEMINI_API_KEY},
-            json={"contents": [{"parts": [{"text": prompt}]}]},
-            timeout=60,
-        )
-        r.raise_for_status()
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        for attempt in range(3):
+            try:
+                r = httpx.post(
+                    f"{BASE}/models/{model}:generateContent",
+                    params={"key": GEMINI_API_KEY},
+                    json={"contents": [{"parts": [{"text": prompt}]}]},
+                    timeout=60,
+                )
+                r.raise_for_status()
+                time.sleep(1)  # Rate limit protection
+                return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < 2:
+                    time.sleep(2 ** (attempt + 1))  # Exponential backoff
+                else:
+                    raise
 
     def complete_with_search(self, prompt: str) -> str:
         """Grounded generation — the model actually calls Google Search."""
-        r = httpx.post(
-            f"{BASE}/models/{LLM_MODEL}:generateContent",
-            params={"key": GEMINI_API_KEY},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "tools": [{"google_search": {}}],
-            },
-            timeout=60,
-        )
-        r.raise_for_status()
-        parts = r.json()["candidates"][0]["content"]["parts"]
-        return "".join(p.get("text", "") for p in parts)
+        for attempt in range(3):
+            try:
+                r = httpx.post(
+                    f"{BASE}/models/{LLM_MODEL}:generateContent",
+                    params={"key": GEMINI_API_KEY},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "tools": [{"google_search": {}}],
+                    },
+                    timeout=60,
+                )
+                r.raise_for_status()
+                time.sleep(1)  # Rate limit protection
+                parts = r.json()["candidates"][0]["content"]["parts"]
+                return "".join(p.get("text", "") for p in parts)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < 2:
+                    time.sleep(2 ** (attempt + 1))  # Exponential backoff
+                else:
+                    raise
 
 
 class FakeProvider:

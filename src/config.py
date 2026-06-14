@@ -11,7 +11,7 @@ FAKE_LLM = os.environ.get("FAKE_LLM", "0") == "1"
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.0-flash")
 FAST_MODEL = os.environ.get("FAST_MODEL", "gemini-2.0-flash")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "text-embedding-004")
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "gemini-embedding-001")
 
 DOCS_DIR = os.environ.get("DOCS_DIR", "docs")
 TOP_K = int(os.environ.get("TOP_K", "4"))
