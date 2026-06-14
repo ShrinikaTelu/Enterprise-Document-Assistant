@@ -13,8 +13,12 @@ from .graph import app_graph, provider, store
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    n = store.ingest_dir()
-    logger.info("ready: provider=%s chunks=%d", provider.name, n)
+    try:
+        n = store.ingest_dir()
+        logger.info("ready: provider=%s chunks=%d", provider.name, n)
+    except Exception as e:
+        logger.error("Failed to ingest docs: %s", e)
+        # Continue anyway - API will work but with empty store
     yield
 
 

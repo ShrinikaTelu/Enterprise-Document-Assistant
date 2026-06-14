@@ -29,14 +29,27 @@ class VectorStore:
         self.matrix: np.ndarray | None = None
 
     def ingest_dir(self, path: str = DOCS_DIR) -> int:
+        if not os.path.exists(path):
+            logger.warning("Docs directory not found: %s", path)
+            return 0
+        
         texts: list[Chunk] = []
         for fname in sorted(os.listdir(path)):
             if not fname.endswith((".md", ".txt")):
                 continue
-            with open(os.path.join(path, fname), encoding="utf-8") as fh:
-                raw = fh.read()
-            for chunk in self._split(raw):
-                texts.append(Chunk(doc=fname, text=chunk))
+            try:
+                with open(os.path.join(path, fname), encoding="utf-8") as fh:
+                    raw = fh.read()
+                for chunk in self._split(raw):
+                    texts.append(Chunk(doc=fname, text=chunk))
+            except Exception as e:
+                logger.warning("Failed to read %s: %s", fname, e)
+                continue
+        
+        if not texts:
+            logger.warning("No documents found in %s", path)
+            return 0
+            
         self.chunks = texts
         vecs = self.provider.embed([c.text for c in texts])
         norms = np.linalg.norm(vecs, axis=1, keepdims=True)
