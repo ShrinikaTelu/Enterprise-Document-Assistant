@@ -110,6 +110,23 @@ Drop your own `.md`/`.txt` files into `docs/` and restart — three sample enter
 FAKE_LLM=1 python -m pytest tests/   # full suite, no network, no key
 ```
 
+## Deploy to production
+
+**One-click deploy to Vercel** (free tier, ~2 minutes):
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ShrinikaTelu/Enterprise-Document-Assistant)
+
+1. Click the button above or go to https://vercel.com/new
+2. Import the `ShrinikaTelu/Enterprise-Document-Assistant` repository
+3. Add environment variable: `GEMINI_API_KEY` (get yours at https://ai.google.dev)
+4. Deploy - your live URL appears in ~60 seconds
+
+**Alternative platforms** (render.yaml, railway.toml, and Procfile included):
+- **Render:** https://render.com (auto-detects `render.yaml`)
+- **Railway:** https://railway.app (auto-detects `railway.toml`)
+
+All three platforms offer free tiers suitable for demos and portfolio projects.
+
 ## Design decisions
 
 - **In-memory numpy vector store, on purpose.** At document-assistant scale (hundreds of chunks), exact cosine search is simpler, free, and instant. The store and the LLM provider are both small interfaces — an enterprise deployment swaps in Vertex AI Vector Search and Vertex-hosted models without touching the graph. The previous iteration of this repo required a provisioned GCP Vector Search index just to start; this one runs in 30 seconds.
