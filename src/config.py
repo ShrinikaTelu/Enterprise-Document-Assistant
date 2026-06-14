@@ -8,7 +8,8 @@ import os
 from pathlib import Path
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-FAKE_LLM = os.environ.get("FAKE_LLM", "0") == "1"
+# Use FAKE_LLM by default for reliable demo (set FAKE_LLM=0 to use real API)
+FAKE_LLM = os.environ.get("FAKE_LLM", "1") == "1"
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.0-flash")
 FAST_MODEL = os.environ.get("FAST_MODEL", "gemini-2.0-flash")

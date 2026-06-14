@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab) ![LangGraph](https://img.shields.io/badge/LangGraph-state%20machine-FF4F8B) ![Gemini](https://img.shields.io/badge/Gemini-grounded%20search-4285F4) ![Tests](https://img.shields.io/badge/tests-passing-5cd692)
 
-🔗 **[Live Demo](https://enterprise-document-assistant.vercel.app/)** — Try it now! Watch the state machine animate in real-time.
+🔗 **[Live Demo](https://enterprise-document-assistant.vercel.app/)** — Try it now! Watch the state machine animate in real-time. (Demo uses deterministic fake LLM for reliable responses)
 
 Naive RAG has two failure modes: it answers from irrelevant context, and it fabricates when context is missing. This project implements a **Self-RAG state machine** (LangGraph) that defends against both — and ships the evaluation that demonstrates it, because an AI feature without evals is a vibe.
 
@@ -44,6 +44,7 @@ The live demo includes:
 - Interactive state-machine visualizer showing each node's execution
 - Sample questions from three enterprise documents (financial, HR, product specs)
 - Real-time trace animation with grounding badges
+- Uses deterministic fake LLM (no API key needed) — shows architecture, not real responses
 
 ## Example usage
 
@@ -58,12 +59,11 @@ curl -X POST https://enterprise-document-assistant.vercel.app/ask \
 
 **Response:**
 ```json
-{
-  "answer": "Q3 2025 revenue reached $4.2M, representing 18% year-over-year growth driven primarily by enterprise SaaS subscriptions.",
+{Mock answer based on retrieved context from financial_report_q3.md",
   "sources": ["financial_report_q3.md"],
   "used_web_fallback": false,
   "grounded": true,
-  "provider": "gemini",
+  "provider": "fake",
   "trace": [
     {"node": "retrieve", "detail": "4 chunks from 3 documents"},
     {"node": "grade_docs", "detail": "1/4 chunks judged relevant"},
@@ -73,20 +73,25 @@ curl -X POST https://enterprise-document-assistant.vercel.app/ask \
 }
 ```
 
+**Note:** The live demo uses FAKE_LLM mode for reliable testing without API costs. Answers are templated, but the **architecture, state machine flow, and trace are 100% real**.
+```
+
 **What happened:**
 1. ✅ Retrieved 4 document chunks based on semantic similarity
 2. ✅ Graded each chunk — 1 was relevant, 3 were filtered out
 3. ✅ Generated answer from the relevant context only
 4. ✅ Verified the answer is grounded in the source document
-
-## Run locally
-
-Get one free API key from https://ai.google.dev — no cloud project or vector database needed:
-
+**Quick start (no API key needed):**
 ```bash
 pip install -r requirements.txt
-export GEMINI_API_KEY=your-key
-uvicorn src.main:app --reload
+FAKE_LLM=1 uvicorn src.main:app --reload
+```
+
+**With real Gemini API:**
+```bash
+pip install -r requirements.txt
+export GEMINI_API_KEY=your-key  # Get free key at https://ai.google.dev
+FAKE_LLM=0 uvicorn src.main:app --reload
 ```
 
 Open **http://localhost:8000/** to see the visualizer in action.
@@ -98,13 +103,18 @@ curl -X POST localhost:8000/ask \
      -d '{"question": "What was Q3 2025 revenue?"}'
 ```
 
+**Run tests Q3 2025 revenue?"}'
+```
+
 **Run tests (no API key needed):**
 ```bash
 FAKE_LLM=1 python -m pytest tests/
 ```
 
-## Deploy your own
-
+## Deploy — live in ~60 seconds (uses FAKE_LLM by default)
+4. **Optional:** To use real Gemini API instead, add environment variable: 
+   - `GEMINI_API_KEY` = your key from https://ai.google.dev
+   - `FAKE_LLM` = `0`
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ShrinikaTelu/Enterprise-Document-Assistant)
 
 **Steps:**
