@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Self-RAG Document Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c1117; --panel:#141b24; --panel-2:#0f161e; --line:#26313d;
+  --line-soft:#1c2530; --teal:#5fd0c5; --teal-dim:rgba(95,208,197,.12);
+  --gold:#e0a458; --gold-dim:rgba(224,164,88,.14); --rose:#e0728c; --green:#6fcf97;
+  --text:#e7ecf2; --muted:#8b97a6; --faint:#5a6675;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --disp:'Fraunces',Georgia,serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.001s!important;transition-duration:.001s!important}}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(95,208,197,.06),transparent 70%)}
+::selection{background:var(--gold);color:var(--bg)}
+a{color:var(--teal)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+header{padding:54px 0 30px;text-align:center;border-bottom:1px solid var(--line-soft)}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+h1{font-family:var(--disp);font-weight:600;font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.01em}
+h1 em{font-style:italic;color:var(--teal)}
+.sub{color:var(--muted);max-width:60ch;margin:16px auto 0;font-size:15.5px}
+.provider-pill{display:inline-flex;align-items:center;gap:8px;margin-top:20px;font-family:var(--mono);
+  font-size:11.5px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);
+  background:var(--panel);padding:6px 13px;border-radius:100px}
+.provider-pill .d{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.provider-pill b{color:var(--teal)}
+
+.ask{margin:34px 0 14px;display:flex;gap:10px;flex-wrap:wrap}
+.ask input{flex:1;min-width:260px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;color:var(--text);padding:14px 16px;font-size:15px;font-family:var(--sans)}
+.ask input::placeholder{color:var(--faint)}
+.ask button{background:var(--gold);color:#2a1c08;border:none;border-radius:10px;
+  font-family:var(--mono);font-weight:600;font-size:13.5px;padding:0 26px;cursor:pointer;transition:filter .15s}
+.ask button:hover{filter:brightness(1.08)}
+.ask button:disabled{opacity:.5;cursor:default}
+.samples{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:30px}
+.samples span{font-family:var(--mono);font-size:11px;color:var(--faint);align-self:center;margin-right:4px}
+.chip{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel-2);
+  border:1px solid var(--line-soft);border-radius:7px;padding:6px 11px;cursor:pointer;transition:all .15s}
+.chip:hover{color:var(--teal);border-color:var(--teal)}
+
+.machine{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px 24px;margin-bottom:22px;overflow-x:auto}
+.machine-label{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:22px;text-align:center}
+.flow{display:flex;align-items:center;justify-content:center;min-width:700px}
+.node{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 16px;
+  border:1px solid var(--line);border-radius:11px;background:var(--panel-2);min-width:108px;
+  transition:all .4s cubic-bezier(.2,.8,.2,1)}
+.node .nm{font-family:var(--mono);font-size:12px;color:var(--muted);transition:color .4s}
+.node .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  border:1px solid var(--line);color:var(--faint);transition:all .4s}
+.node .ic svg{width:18px;height:18px}
+.node.active{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal),0 8px 30px rgba(95,208,197,.18);transform:translateY(-3px)}
+.node.active .nm{color:var(--teal)}
+.node.active .ic{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+.node.done .ic{color:var(--green);border-color:rgba(111,207,151,.4)}
+.node.skipped{opacity:.3}
+.node.pulse{animation:pulse .5s ease}
+@keyframes pulse{0%{transform:scale(1)}40%{transform:scale(1.06)}100%{transform:scale(1)}}
+.node .badge{position:absolute;top:-9px;right:-9px;font-family:var(--mono);font-size:10px;
+  padding:2px 6px;border-radius:6px;opacity:0;transition:opacity .3s;white-space:nowrap}
+.node.show-badge .badge{opacity:1}
+.badge.yes{background:var(--green);color:#06210f}
+.badge.no{background:var(--rose);color:#2a0810}
+.edge{width:40px;height:2px;background:var(--line);position:relative;flex-shrink:0;transition:background .3s}
+.edge.lit{background:var(--teal)}
+.edge::after{content:"";position:absolute;right:-1px;top:-3px;border:4px solid transparent;border-left-color:var(--line);transition:border-left-color .3s}
+.edge.lit::after{border-left-color:var(--teal)}
+.fork{display:flex;flex-direction:column;gap:16px}
+.fork-row{display:flex;align-items:center}
+.fork-row.web{padding-left:48px}
+
+.answer{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  opacity:0;transform:translateY(10px);transition:opacity .5s,transform .5s}
+.answer.in{opacity:1;transform:none}
+.answer-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  padding:16px 22px;border-bottom:1px solid var(--line-soft)}
+.answer-head .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.tags{display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:100px;border:1px solid var(--line)}
+.tag.path-docs{color:var(--teal);border-color:rgba(95,208,197,.4);background:var(--teal-dim)}
+.tag.path-web{color:var(--gold);border-color:rgba(224,164,88,.4);background:var(--gold-dim)}
+.tag.grounded{color:var(--green);border-color:rgba(111,207,151,.4)}
+.tag.ungrounded{color:var(--rose);border-color:rgba(224,114,140,.4)}
+.answer-body{padding:22px;font-size:15.5px;white-space:pre-wrap}
+.sources{padding:0 22px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sources .lbl{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.src{font-family:var(--mono);font-size:11.5px;color:var(--teal);background:var(--teal-dim);
+  border:1px solid rgba(95,208,197,.3);border-radius:6px;padding:3px 9px}
+.err{color:var(--rose);font-family:var(--mono);font-size:13px}
+
+footer{text-align:center;padding:34px 0 50px;color:var(--faint);font-family:var(--mono);font-size:11.5px;border-top:1px solid var(--line-soft);margin-top:40px}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="kicker">Self-Correcting Retrieval</div>
+    <h1>Watch the assistant <em>grade its own work</em></h1>
+    <p class="sub">Ask a question. The answer comes from the documents — but only after the system grades whether the retrieved context is relevant, falls back to grounded web search when it isn't, and checks its own answer before showing it to you.</p>
+    <div class="provider-pill"><span class="d"></span>analysis provider: <b id="prov">…</b></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="ask">
+    <input id="q" placeholder="Ask about the documents — e.g. What is the Q4 revenue guidance?" />
+    <button id="go">Ask</button>
+  </div>
+  <div class="samples">
+    <span>try:</span>
+    <button class="chip" data-q="What is the Q4 revenue guidance?">Q4 guidance</button>
+    <button class="chip" data-q="How many days a week can engineers work remotely?">remote policy</button>
+    <button class="chip" data-q="When will the Phoenix line reach full capacity?">Phoenix line</button>
+    <button class="chip" data-q="What is the current weather in Tokyo?">something the docs can't answer →</button>
+  </div>
+
+  <div class="machine">
+    <div class="machine-label">Self-RAG pipeline</div>
+    <div class="flow">
+      <div class="node" id="n-retrieve">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <div class="nm">retrieve</div>
+      </div>
+      <div class="edge" id="e-rg"></div>
+      <div class="node" id="n-grade_docs">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <div class="nm">grade docs</div>
+        <span class="badge" id="b-grade"></span>
+      </div>
+      <div class="edge" id="e-gen"></div>
+      <div class="fork">
+        <div class="fork-row">
+          <div class="node" id="n-generate">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></div>
+            <div class="nm">generate</div>
+          </div>
+          <div class="edge" id="e-gc"></div>
+          <div class="node" id="n-check_grounding">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div class="nm">check grounding</div>
+            <span class="badge" id="b-check"></span>
+          </div>
+        </div>
+        <div class="fork-row web">
+          <div class="node" id="n-web_search">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+            <div class="nm">web search</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="answer" id="answer">
+    <div class="answer-head">
+      <span class="t">Answer</span>
+      <div class="tags" id="tags"></div>
+    </div>
+    <div class="answer-body" id="abody"></div>
+    <div class="sources" id="asrc"></div>
+  </div>
+</main>
+
+<footer>
+  Self-RAG Document Assistant · LangGraph + FastAPI + Gemini ·
+  <a href="https://github.com/ShrinikaTelu/Enterprise-Document-Assistant" target="_blank" rel="noopener">source</a> ·
+  built by <a href="https://shrinikatelu.github.io/" target="_blank" rel="noopener">Shrinika Telu</a>
+</footer>
+
+<script>
+const $ = (s)=>document.querySelector(s);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = (ms)=>new Promise(r=>setTimeout(r, reduced?0:ms));
+
+fetch('/health').then(r=>r.json()).then(h=>{$('#prov').textContent=h.provider;})
+  .catch(()=>{$('#prov').textContent='unreachable';});
+
+const NODES = ['retrieve','grade_docs','web_search','generate','check_grounding'];
+function resetMachine(){
+  NODES.forEach(n=>{$('#n-'+n).className='node';});
+  ['e-rg','e-gen','e-gc'].forEach(e=>$('#'+e).className='edge');
+  $('#b-grade').className='badge'; $('#b-check').className='badge';
+  $('#answer').classList.remove('in');
+}
+const lightEdge=(id)=>$('#'+id).classList.add('lit');
+
+async function playTrace(trace, result){
+  resetMachine();
+  const visited = new Set(trace.map(t=>t.node));
+  NODES.forEach(n=>{ if(!visited.has(n)) $('#n-'+n).classList.add('skipped'); });
+
+  for(const step of trace){
+    const el = $('#n-'+step.node);
+    el.classList.remove('skipped');
+    el.classList.add('active','pulse');
+    await sleep(520);
+    el.classList.remove('pulse');
+
+    if(step.node==='retrieve'){ await sleep(100); lightEdge('e-rg'); }
+    if(step.node==='grade_docs'){
+      const wentWeb = visited.has('web_search');
+      const b=$('#b-grade');
+      b.textContent = wentWeb ? 'none relevant' : 'relevant';
+      b.className = 'badge ' + (wentWeb?'no':'yes');
+      el.classList.add('show-badge');
+      await sleep(160); lightEdge('e-gen');
+    }
+    if(step.node==='generate'){ await sleep(100); lightEdge('e-gc'); }
+    if(step.node==='check_grounding'){
+      const b=$('#b-check');
+      b.textContent = result.grounded ? 'grounded' : 'ungrounded';
+      b.className = 'badge ' + (result.grounded?'yes':'no');
+      el.classList.add('show-badge');
+    }
+    await sleep(110);
+    el.classList.remove('active'); el.classList.add('done');
+  }
+  showAnswer(result);
+}
+
+function showAnswer(r){
+  const tags=$('#tags'); tags.innerHTML='';
+  const path=document.createElement('span');
+  if(r.used_web_fallback){ path.className='tag path-web'; path.textContent='via web search'; }
+  else { path.className='tag path-docs'; path.textContent='via documents'; }
+  tags.appendChild(path);
+  if(!r.used_web_fallback){
+    const g=document.createElement('span');
+    g.className='tag '+(r.grounded?'grounded':'ungrounded');
+    g.textContent=r.grounded?'grounding verified':'grounding failed';
+    tags.appendChild(g);
+  }
+  $('#abody').textContent = r.answer || '(no answer returned)';
+  const src=$('#asrc'); src.innerHTML='';
+  if(r.sources && r.sources.length){
+    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent='sources:';
+    src.appendChild(lbl);
+    r.sources.forEach(s=>{const e=document.createElement('span');e.className='src';e.textContent=s;src.appendChild(e);});
+  }
+  $('#answer').classList.add('in');
+}
+
+async function ask(q){
+  if(!q.trim()) return;
+  $('#go').disabled=true; $('#go').textContent='Thinking…';
+  resetMachine();
+  $('#n-retrieve').classList.add('active');
+  try{
+    const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    if(!r.ok) throw new Error('server '+r.status);
+    const data=await r.json();
+    await playTrace(data.trace||[], data);
+  }catch(err){
+    resetMachine();
+    $('#abody').innerHTML='<span class="err">Couldn\'t reach the pipeline: '+err.message+'</span>';
+    $('#tags').innerHTML=''; $('#asrc').innerHTML='';
+    $('#answer').classList.add('in');
+  }finally{
+    $('#go').disabled=false; $('#go').textContent='Ask';
+  }
+}
+
+$('#go').onclick=()=>ask($('#q').value);
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')ask($('#q').value);});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('#q').value=c.dataset.q;ask(c.dataset.q);});
+</script>
+</body>
+</html>
